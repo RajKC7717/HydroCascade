@@ -1,0 +1,24 @@
+# HydroCascade — Doc 10 §8 rule 4:
+# data/ is gitignored EXCEPT PROVENANCE.md files, the catalog, and the
+# reference list. The reference list is hand-curated provenance work, not a
+# derived artefact: losing it loses an afternoon in the KSDMA and EMS archives,
+# and the recall test has no denominator without it.
+data/*
+!data/catalog/
+!data/reference/
+!data/**/PROVENANCE.md
+
+# but never commit large intermediates even inside catalog/
+data/catalog/*.parquet
+data/catalog/*.gpkg
+
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Generated outputs are reproducible from the pipeline
+figures/*.png
+!figures/.gitkeep

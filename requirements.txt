@@ -1,0 +1,59 @@
+# HydroCascade — Phases 1-2 runtime.
+# Doc 11 §3 pins Python 3.12 + conda; we use 3.11 + venv/pip because the 3.12
+# pin exists only for `tick`, which is a Phase-4/5 simulation-only dependency
+# living in its own isolated environment. See README §Environment.
+
+numpy>=1.26,<2.0
+pandas>=2.2
+scipy>=1.13
+pyarrow>=15.0
+
+# geospatial
+rasterio>=1.3.9
+# rasterio depends on affine, but spatial/terrain.py imports `Affine` directly,
+# so it is a direct dependency here whatever rasterio does next.
+affine>=2.4
+geopandas>=1.0
+shapely>=2.0
+pyproj>=3.6
+pyogrio>=0.9
+rioxarray>=0.15
+xarray>=2024.3
+netCDF4>=1.6
+
+# image morphology — spatial/flow.py fills depressions with grayscale
+# reconstruction by erosion, which is the priority-flood result without the
+# priority queue. Without this, `hydrocascade flow` fails on a clean install.
+scikit-image>=0.22
+
+# graph / network
+networkx>=3.2
+
+# ml (Phase 3; installed now so the environment is stable across the semester)
+scikit-learn>=1.5
+xgboost>=2.0
+shap>=0.45
+
+# autodiff for the Phase-4 cascade likelihood. Not optional: nine modules import
+# it, and `hydrocascade cascade` fails immediately without it. It was missing
+# here for the same reason scikit-image was — the working venv had it, so a
+# clean install was the only thing that would have noticed. CPU build is enough;
+# the fits are small and `torch.set_num_threads(2)` keeps memory down.
+torch>=2.2
+
+# delivery
+matplotlib>=3.8
+streamlit>=1.35
+
+# plumbing
+PyYAML>=6.0
+requests>=2.31
+tqdm>=4.66
+pytest>=8.0
+
+# Deliberately NOT declared, and both are correct as they are:
+#   cdsapi  — only for downloading GloFAS. Guarded by try/except with an install
+#             message, because most runs read local files instead.
+#   tick    — the Doc 07 §2 external likelihood cross-check. Needs Python 3.12
+#             and its own environment; gate P4.2 reports BLOCKED without it
+#             rather than pretending the check passed.

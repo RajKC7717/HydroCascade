@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hydrocascade"
+version = "0.2.0"
+description = "Root cause analysis and cross-hazard point process framework for rainfall-triggered disaster chains"
+requires-python = ">=3.11"
+dynamic = ["dependencies"]
+
+[project.scripts]
+hydrocascade = "hydrocascade.__main__:main"
+
+[tool.setuptools.dynamic]
+dependencies = { file = ["requirements.txt"] }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+markers = [
+    "network: test requires internet access",
+    "slow: test takes more than ~30 s",
+]

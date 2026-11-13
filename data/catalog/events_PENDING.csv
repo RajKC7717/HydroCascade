@@ -1,0 +1,5 @@
+event_id,hazard_type,date,time_known,time,lat,lon,geometry_type,area_m2,elevation_m,mark_raw,mark_value,severity_class,spatial_unit_id,source,source_url,source_date_accessed,accessed_by,confidence,duplicate_of,notes
+,L,,N,,,,point,,,,,,,NEEDS_SOURCING,,2026-09-04,choud,low,,Puthumala. Doc 04 §5 provenance warning: published sources disagree on the date (8 vs 29 August 2019). Resolve from GSI or the primary field report and record which source was trusted. 2-3 km from the 2024 crown.
+,L,2019-08-08,N,,,,point,,,,,,,NEEDS_SOURCING,,2026-09-04,choud,low,,"Kavalappara. Doc 04 §5 test event, Malappuram. Coordinates to be sourced from GSI."
+,L,2020-08-06,N,,,,point,,,,,,,NEEDS_SOURCING,,2026-09-04,choud,low,,"Pettimudi. Doc 04 §5 test event, Idukki. Coordinates to be sourced from GSI."
+,L,2021-10-16,N,,,,point,,,,,,,NEEDS_SOURCING,,2026-09-04,choud,low,,"Kokkayar. Doc 04 §5 test event, October 2021 cluster. Coordinates to be sourced."

@@ -1,0 +1,179 @@
+# HydroCascade — single source of every tunable knob.
+#
+# Doc 11 §5 coding rule 3: "Every kernel variant is a config flag, not a code
+# edit."  We apply that rule to the whole pipeline, not just the kernels: no
+# threshold, path, date or CRS is hard-coded anywhere in src/.
+
+project:
+  name: hydrocascade
+  seed: 20260904          # NFR-08: fixed seeds everywhere
+
+# ---------------------------------------------------------------- region ----
+# Doc 04 §1: the boundary is HYDROLOGICAL, never administrative, because a
+# landslide in Wayanad district can flood a reach in Malappuram district.
+region:
+  id: chaliyar_pilot
+  description: >
+    Chaliyar basin pilot. Contains the full Mundakkai -> Chooralmala ->
+    Punnapuzha -> Chaliyar -> Nilambur cascade path, so every Phase-2 quality
+    gate in Doc 05 §9 is testable. Scale to the 4-district region by switching
+    region.id and seed_bbox; no code changes required.
+
+  # Used only to clip the continental HydroSHEDS file before the true basin
+  # polygon is derived by downstream/upstream graph walking.
+  seed_bbox: [75.55, 10.90, 76.65, 11.85]   # minlon, minlat, maxlon, maxlat
+
+  # The basin is found by walking downstream from this point to the outlet,
+  # then collecting every basin upstream of that path.
+  seed_point:
+    lat: 11.4654
+    lon: 76.1348
+    name: Mundakkai landslide crown
+
+  hydrobasins_level: 8
+  buffer_km: 10.0        # Doc 05 §2.2 step 1: flow routing must not terminate
+                         # at the study boundary
+
+# ------------------------------------------------------------------- crs ----
+crs:
+  analysis: "EPSG:32643"   # UTM 43N. Distances and areas cannot be computed in degrees.
+  storage: "EPSG:4326"     # catalog only
+
+# ---------------------------------------------------------------- period ----
+period:
+  start: "2018-06-01"
+  end: "2024-12-31"
+  holdout_start: "2024-06-01"   # Doc 04 §1: held out entirely
+
+# ------------------------------------------------------------- landmarks ----
+# Ground truth for the Phase-2 quality gates (Doc 05 §3.1, §5.4).
+landmarks:
+  mundakkai_crown:
+    lat: 11.4654
+    lon: 76.1348
+    note: "GSI Bhusanket FIR; elevation ~1550-1600 m"
+  chooralmala_bridge:
+    lat: 11.4992
+    lon: 76.1601
+    note: "Bridge destroyed 30 Jul 2024"
+  nilambur:
+    lat: 11.2769
+    lon: 76.2286
+    note: "Chaliyar at Nilambur; catchment large enough for GloFAS"
+
+wayanad_event:
+  date: "2024-07-30"
+  time_ist: "02:17"
+  rainfall_mm_24h_prior: 204.0     # 29 Jul
+  rainfall_mm_24h_event: 373.0     # 30 Jul
+  rainfall_tolerance_frac: 0.15    # Doc 05 §9 gate 4
+
+# --------------------------------------------------------------- catalog ----
+catalog:
+  dedup:
+    distance_m: 500      # Doc 04 §3.3
+    days: 1
+    # Which hazard types the spatial/temporal merge applies to.
+    #
+    # Doc 04 §3.3 states the 500 m / 1 day rule inside the *landslide* section,
+    # because two inventories will list the same slide a few hundred metres
+    # apart. Doc 04 §6 gate 5 then states it for "same-type events" generally,
+    # which reads as covering floods too.
+    #
+    # Applied to floods it is actively harmful: reaches are 500 m long by
+    # construction, so every pair of adjacent reaches flooding on the same day
+    # merges into one event. That erases the downstream propagation the whole
+    # project exists to measure (it cut 3,921 flood events to 2,463 here).
+    # Floods already have their own declustering — 3 consecutive sub-threshold
+    # days at the same reach, Doc 02 §3 step 3 — which is the correct
+    # de-duplication for a per-reach detection rule.
+    hazard_types: ["L"]
+  crown_convention: highest_elevation   # Doc 04 §3.2, NOT centroid
+  completeness:
+    # Filled in by the size-frequency rollover analysis; null means "not yet
+    # estimated". Once set, events below this area are excluded from modelling
+    # and the exclusion is stated in the paper (Doc 04 §3.4).
+    min_area_m2: null
+    n_bins: 40
+
+# ----------------------------------------------------------------- flood ----
+# Doc 02 §3 / Doc 04 §4. This is a procedure, not a judgement call.
+floods:
+  return_periods: [2, 5, 20]
+  threshold_return_period: 2        # sensitivity: 5
+  decluster_days: 3                 # sensitivity: 5
+  min_contributing_area_km2: 50     # sensitivity: 250
+  min_years_for_gumbel: 20
+
+# --------------------------------------------------------------- spatial ----
+spatial:
+  dem:
+    source: copernicus_glo30
+    resolution_m: 30
+  flow:
+    fill_method: priority_flood
+    # Doc 02 §2.2: cells above this contributing area are channel cells.
+    channel_threshold_km2: 1.0
+  slope_units:
+    target_median_area_km2: 0.25    # Doc 05 §2.2 step 6
+    min_area_km2: 0.02              # discard slivers
+  network:
+    reach_length_m: 500             # nominal; always split at confluences
+  travel_time:
+    celerity_exponent: 0.3          # v(s) = v0 * S(s)^0.3, Doc 02 §5.4
+    # REFERENCE only, for reporting. v0 is fitted in Phase 4; the cached table
+    # stores the path integral of length/S^0.3, so it never needs recomputing
+    # (Doc 05 §5.1).
+    #
+    # NOTE v0 is a coefficient, not a speed: the celerity is v = v0 * S^0.3, and
+    # the median reach slope here gives S^0.3 ~ 0.215. Doc 05 §5.1 asks for a
+    # reference v0 "chosen so speeds fall in the physical range 1-5 m/s", which
+    # means v0 ~ 9, not v0 ~ 2. Setting v0 = 2 directly yields a median flood
+    # wave of 0.43 m/s, which is far too slow. The build stage checks the
+    # resulting celerity distribution and warns if it leaves that range.
+    v0_reference_ms: 9.0
+    v0_min_ms: 4.5                  # slowest plausible v0 (half the reference).
+                                    # The truncation radius is 48 h at THIS
+                                    # value, so the cached table stays valid for
+                                    # every v0 the Phase 4 fit may pick (Doc 05 §5.2)
+    celerity_physical_range_ms: [1.0, 5.0]   # asserted after the table is built
+    min_slope: 1.0e-4               # guard against zero-slope reaches
+    max_reference_hours: 48         # truncation radius (Doc 05 §5.2)
+
+# -------------------------------------------------------------- rainfall ----
+rainfall:
+  # chirps (downloads itself) | imd | imerg (local files, docs/15_HOW_TO_RUN.md)
+  primary: chirps
+  # p25 (0.25 deg) matches IMD's native grid, which is what Doc 05 §7 uses for
+  # the antecedent windows. p05 (0.05 deg) is ~16x the download for finer detail;
+  # switch once IMERG is available for event-scale intensity anyway.
+  chirps_resolution: p25
+  windows_days: [1, 3, 7, 15, 30]   # R1, R3, R7, R15, R30
+  api:
+    # Antecedent precipitation index, Doc 09 §1.3. Built from rainfall alone so
+    # it is usable in real time, unlike ERA5-Land.
+    decay_k: 0.90
+
+# ------------------------------------------------------------- data mode ----
+# Doc 10 §7: four datasets need a free account. Each has a `real` adapter and a
+# `synthetic` generator so no pipeline stage ever blocks on an approval email.
+# glofas: `real` reads netCDF from data/raw/GLOFAS/<date>/ (or downloads it if
+# ~/.cdsapirc exists). IMD and IMERG are not switched here: set
+# `rainfall.primary` above and put the files in data/raw/IMD|IMERG/<date>/.
+# ERA5-Land is on no pipeline path (Doc 09 §1.3: the API proxy replaces it).
+# See docs/15_HOW_TO_RUN.md.
+data_mode:
+  glofas: synthetic
+  era5_land: unused
+  # Sentinel-1 has no synthetic stand-in on purpose. It exists only to *score*
+  # the flood definition (Doc 02 §3.3), and a synthetic corroboration number
+  # would be worse than no number at all: it would look like evidence. Until an
+  # Earth Engine account exists the precision test reports BLOCKED and prints
+  # the recipe. See ingest/corroboration.py.
+  sentinel1: unavailable
+  landslides: real
+  chirps: real
+  dem: real
+  hydrosheds: real
+  worldcover: real
+  soilgrids: real
